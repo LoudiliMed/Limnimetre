@@ -1,0 +1,275 @@
+# =====================================================================
+#  LIMNIMETRE - firmware ESPHome
+#  Mode simulation : aucun capteur necessaire.
+#  Le curseur "Niveau simule" dans Home Assistant remplace le capteur.
+#  Quand les capteurs arrivent : voir la section CAPTEURS REELS en bas.
+# =====================================================================
+
+substitutions:
+  nom: limnimetre
+  # --- Geometrie de la cuve, les seules valeurs a changer ---
+  hauteur_cuve: "3.18"       # m, hauteur d'eau maximale
+  rayon_cuve: "1.0"          # m, rayon interieur (cuve de 2 m de diametre)
+  hauteur_capteur: "3.40"    # m, de la face du capteur au fond de la cuve
+  temp_ref: "20.0"           # degC, temperature supposee par le module ultrason
+  periode: 60s               # periode de publication (REQ002)
+
+esphome:
+  name: ${nom}
+  friendly_name: Limnimetre
+
+esp32:
+  board: esp32dev
+  framework:
+    type: arduino
+
+logger:
+
+# --- API Home Assistant (decouverte automatique, REQ003 et REQ010) ---
+api:
+  encryption:
+    key: !secret api_key
+
+ota:
+  - platform: esphome
+    password: !secret ota_password
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  # Portail de configuration si le Wi-Fi est introuvable
+  ap:
+    ssid: "Limnimetre-config"
+    password: !secret ap_password
+
+captive_portal:
+
+# =====================================================================
+#  VARIABLES INTERNES
+# =====================================================================
+globals:
+  - id: capteur_ko
+    type: bool
+    restore_value: false
+    initial_value: 'false'
+
+# =====================================================================
+#  LED DE STATUT (REQ007)
+#  fixe = en service | lent = connexion | rapide = erreur capteur
+# =====================================================================
+output:
+  - platform: gpio
+    pin: GPIO25
+    id: led_out
+
+interval:
+  - interval: 250ms
+    then:
+      - lambda: |-
+          static int tick = 0;
+          tick++;
+          bool allume;
+          if (id(capteur_ko)) {
+            allume = (tick % 2) == 0;              // rapide
+          } else if (!id(connecte).state) {
+            allume = (tick % 8) < 4;               // lent
+          } else {
+            allume = true;                         // fixe
+          }
+          if (allume) id(led_out).turn_on(); else id(led_out).turn_off();
+
+# =====================================================================
+#  SIMULATION : ce curseur remplace le capteur
+#  A supprimer le jour ou les capteurs arrivent.
+# =====================================================================
+number:
+  - platform: template
+    name: "Niveau simule"
+    id: niveau_sim
+    optimistic: true
+    min_value: 0
+    max_value: 3.18
+    step: 0.01
+    initial_value: 1.5
+    unit_of_measurement: m
+    entity_category: config
+
+# =====================================================================
+#  CHAINE DE MESURE
+#  distance brute -> correction temperature -> niveau -> volume
+# =====================================================================
+sensor:
+
+  # --- 1. Distance brute (SIMULEE, bruit de +/- 2 cm) ---
+  - platform: template
+    name: "Distance brute"
+    id: distance_brute
+    unit_of_measurement: m
+    accuracy_decimals: 3
+    update_interval: ${periode}
+    entity_category: diagnostic
+    lambda: |-
+      float d = ${hauteur_capteur} - id(niveau_sim).state;
+      d += ((float) random(-20, 21)) / 1000.0;
+      return d;
+
+  # --- 2. Temperature (SIMULEE) ---
+  - platform: template
+    name: "Temperature"
+    id: temperature
+    unit_of_measurement: "°C"
+    device_class: temperature
+    accuracy_decimals: 1
+    update_interval: ${periode}
+    lambda: |-
+      return 12.0 + ((float) random(-30, 31)) / 10.0;
+
+  # --- 3. Niveau d'eau : correction + filtrage + rejet des aberrations ---
+  - platform: template
+    name: "Niveau d'eau"
+    id: niveau
+    unit_of_measurement: m
+    accuracy_decimals: 3
+    update_interval: ${periode}
+    lambda: |-
+      float d = id(distance_brute).state;
+      float t = id(temperature).state;
+
+      // Capteur muet : on publie NaN, pas une valeur inventee
+      if (isnan(d) || isnan(t)) {
+        id(capteur_ko) = true;
+        return NAN;
+      }
+
+      // Correction de la vitesse du son : c(T) = 331,3 + 0,606 T
+      float c_t   = 331.3 + 0.606 * t;
+      float c_ref = 331.3 + 0.606 * ${temp_ref};
+      d = d * c_t / c_ref;
+
+      float h = ${hauteur_capteur} - d;
+
+      // Rejet des mesures aberrantes (echo de paroi, feuille flottante)
+      if (h < -0.05 || h > ${hauteur_cuve} + 0.05) {
+        id(capteur_ko) = true;
+        return NAN;
+      }
+
+      id(capteur_ko) = false;
+      if (h < 0) h = 0;
+      return h;
+    filters:
+      - median:
+          window_size: 5
+          send_every: 1
+
+  # --- 4. Volume : V = pi r2 h, en litres ---
+  - platform: template
+    name: "Volume"
+    id: volume
+    unit_of_measurement: L
+    device_class: water
+    accuracy_decimals: 0
+    update_interval: ${periode}
+    lambda: |-
+      float h = id(niveau).state;
+      if (isnan(h)) return NAN;
+      return 3.14159265 * ${rayon_cuve} * ${rayon_cuve} * h * 1000.0;
+
+  # --- 5. Remplissage en pourcentage ---
+  - platform: template
+    name: "Remplissage"
+    id: remplissage
+    unit_of_measurement: "%"
+    icon: "mdi:water-percent"
+    accuracy_decimals: 0
+    update_interval: ${periode}
+    lambda: |-
+      float h = id(niveau).state;
+      if (isnan(h)) return NAN;
+      return 100.0 * h / ${hauteur_cuve};
+
+  # --- Diagnostic ---
+  - platform: wifi_signal
+    name: "Signal Wi-Fi"
+    update_interval: 120s
+    entity_category: diagnostic
+
+  - platform: uptime
+    name: "Duree de marche"
+    entity_category: diagnostic
+
+# =====================================================================
+#  ETATS
+# =====================================================================
+binary_sensor:
+  - platform: status
+    name: "Disponible"
+    id: connecte
+
+  - platform: template
+    name: "Erreur capteur"
+    device_class: problem
+    entity_category: diagnostic
+    lambda: 'return id(capteur_ko);'
+
+  - platform: template
+    name: "Gel possible"
+    icon: "mdi:snowflake-alert"
+    lambda: |-
+      if (isnan(id(temperature).state)) return false;
+      return id(temperature).state < 2.0;
+
+  - platform: template
+    name: "Cuve basse"
+    icon: "mdi:water-alert"
+    lambda: |-
+      if (isnan(id(remplissage).state)) return false;
+      return id(remplissage).state < 15.0;
+
+# =====================================================================
+#  CAPTEURS REELS - a decommenter quand le colis arrive
+#  Supprimer alors le bloc "number:" et les lambdas 1 et 2 ci-dessus.
+#  Le reste de la chaine ne bouge pas.
+# =====================================================================
+#
+# uart:
+#   - id: uart_sonde
+#     rx_pin: GPIO16
+#     tx_pin: GPIO17
+#     baud_rate: 9600
+#
+# one_wire:
+#   - platform: gpio
+#     pin: GPIO4
+#
+# i2c:
+#   sda: GPIO21
+#   scl: GPIO22
+#
+# ads1115:
+#   - address: 0x48
+#
+# sensor:
+#   # Ultrason SEN0311 (A02YYUW). Verifier le nom exact de la plateforme
+#   # dans la doc ESPHome : "a02yyuw" ou "jsn_sr04t" selon la version.
+#   - platform: a02yyuw
+#     uart_id: uart_sonde
+#     name: "Distance brute"
+#     id: distance_brute
+#     unit_of_measurement: m
+#     filters:
+#       - multiply: 0.001        # le module renvoie des millimetres
+#
+#   - platform: dallas_temp
+#     name: "Temperature"
+#     id: temperature
+#     update_interval: ${periode}
+#
+#   # Voie pression : sonde KIT0139 via le convertisseur SEN0262
+#   - platform: ads1115
+#     multiplexer: 'A0_GND'
+#     gain: 4.096
+#     name: "Tension sonde pression"
+#     id: tension_pression
+#     update_interval: ${periode}
+#     entity_category: diagnostic

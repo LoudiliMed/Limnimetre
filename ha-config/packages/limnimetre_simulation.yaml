@@ -1,0 +1,94 @@
+input_number:
+  niveau_simule:
+    name: "Niveau simulé"
+    min: 0
+    max: 3.18
+    step: 0.01
+    unit_of_measurement: m
+    icon: mdi:waves
+  temperature_simulee:
+    name: "Température simulée"
+    min: -10
+    max: 50
+    step: 0.5
+    unit_of_measurement: "°C"
+    icon: mdi:thermometer
+
+template:
+  - sensor:
+      - name: "Niveau d'eau"
+        unique_id: limni_niveau
+        unit_of_measurement: m
+        state_class: measurement
+        icon: mdi:waves
+        state: >
+          {{ states('input_number.niveau_simule') | float(0) | round(3) }}
+      - name: "Volume cuve"
+        unique_id: limni_volume
+        unit_of_measurement: L
+        state_class: measurement
+        icon: mdi:cup-water
+        state: >
+          {{ (3.14159265 * (states('input_number.niveau_simule') | float(0)) * 1000) | round(0) }}
+      - name: "Remplissage cuve"
+        unique_id: limni_remplissage
+        unit_of_measurement: "%"
+        state_class: measurement
+        icon: mdi:water-percent
+        state: >
+          {{ (100 * (states('input_number.niveau_simule') | float(0)) / 3.18) | round(0) }}
+      - name: "Température cuve"
+        unique_id: limni_temperature
+        unit_of_measurement: "°C"
+        device_class: temperature
+        state_class: measurement
+        state: >
+          {{ states('input_number.temperature_simulee') | float(0) }}
+  - binary_sensor:
+      - name: "Cuve basse"
+        unique_id: limni_cuve_basse
+        icon: mdi:water-alert
+        state: >
+          {{ (states('sensor.remplissage_cuve') | float(100)) < 15 }}
+      - name: "Cuve pleine"
+        unique_id: limni_cuve_pleine
+        icon: mdi:water-check
+        state: >
+          {{ (states('sensor.remplissage_cuve') | float(0)) > 95 }}
+      - name: "Gel possible"
+        unique_id: limni_gel
+        icon: mdi:snowflake-alert
+        state: >
+          {{ (states('input_number.temperature_simulee') | float(20)) < 2 }}
+
+automation:
+  - alias: "Limnimetre - alerte cuve basse"
+    id: limni_alerte_cuve_basse
+    mode: single
+    trigger:
+      - platform: state
+        entity_id: binary_sensor.cuve_basse
+        to: "on"
+        for: "00:05:00"
+    action:
+      - service: persistent_notification.create
+        data:
+          title: "Cuve basse"
+          message: >
+            Il reste {{ states('sensor.volume_cuve') }} litres,
+            soit {{ states('sensor.remplissage_cuve') }} % de la cuve.
+  - alias: "Limnimetre - alerte gel"
+    id: limni_alerte_gel
+    mode: single
+    trigger:
+      - platform: state
+        entity_id: binary_sensor.gel_possible
+        to: "on"
+        for: "00:30:00"
+    action:
+      - service: persistent_notification.create
+        data:
+          title: "Gel possible"
+          message: >
+            Température de {{ states('sensor.temperature_cuve') }} °C.
+            La mesure peut être dégradée.

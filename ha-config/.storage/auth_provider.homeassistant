@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "minor_version": 1,
+  "key": "auth_provider.homeassistant",
+  "data": {
+    "users": [
+      {
+        "username": "limnimetre",
+        "password": "JDJiJDEyJC5xUEhrckZRRm42eDJjQ1NEYzF5Uy5xSXF0WFM2SkFPdG5CcS52c1U4VjNKSG5qWGhPaXVx"
+      }
+    ]
+  }
+}

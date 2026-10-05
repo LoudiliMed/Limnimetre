@@ -1,0 +1,60 @@
+# Tableau de bord Home Assistant
+# A coller dans : Parametres > Tableaux de bord > Modifier > Editeur YAML brut
+# Remplacer "limnimetre" si le nom de l'appareil differe.
+
+title: Limnimetre
+views:
+  - title: Cuve
+    cards:
+
+      - type: vertical-stack
+        cards:
+          - type: gauge
+            entity: sensor.limnimetre_remplissage
+            name: Remplissage
+            min: 0
+            max: 100
+            needle: true
+            severity:
+              green: 40
+              yellow: 15
+              red: 0
+
+          - type: glance
+            entities:
+              - entity: sensor.limnimetre_volume
+                name: Volume
+              - entity: sensor.limnimetre_niveau_d_eau
+                name: Niveau
+              - entity: sensor.limnimetre_temperature
+                name: Temperature
+
+      - type: history-graph
+        title: Niveau sur 24 h
+        hours_to_show: 24
+        entities:
+          - sensor.limnimetre_niveau_d_eau
+
+      - type: entities
+        title: Etat de l'equipement
+        entities:
+          - entity: binary_sensor.limnimetre_disponible
+            name: Disponible
+          - entity: binary_sensor.limnimetre_cuve_basse
+            name: Cuve basse
+          - entity: binary_sensor.limnimetre_gel_possible
+            name: Gel possible
+          - entity: binary_sensor.limnimetre_erreur_capteur
+            name: Erreur capteur
+          - entity: sensor.limnimetre_signal_wi_fi
+            name: Signal Wi-Fi
+          - entity: sensor.limnimetre_duree_de_marche
+            name: Duree de marche
+
+      - type: entities
+        title: Simulation
+        entities:
+          - entity: number.limnimetre_niveau_simule
+            name: Niveau simule
+          - entity: sensor.limnimetre_distance_brute
+            name: Distance brute

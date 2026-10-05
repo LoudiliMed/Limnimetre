@@ -1,0 +1,93 @@
+{
+  "version": 1,
+  "minor_version": 1,
+  "key": "lovelace.dashboard_limnimetre",
+  "data": {
+    "config": {
+      "title": "Limnimetre",
+      "views": [
+        {
+          "title": "Cuve",
+          "cards": [
+            {
+              "type": "vertical-stack",
+              "cards": [
+                {
+                  "type": "gauge",
+                  "entity": "sensor.remplissage_cuve",
+                  "name": "Remplissage",
+                  "min": 0,
+                  "max": 100,
+                  "needle": true,
+                  "severity": {
+                    "green": 40,
+                    "yellow": 15,
+                    "red": 0
+                  }
+                },
+                {
+                  "type": "glance",
+                  "entities": [
+                    {
+                      "entity": "sensor.volume_cuve",
+                      "name": "Volume"
+                    },
+                    {
+                      "entity": "sensor.niveau_d_eau",
+                      "name": "Niveau"
+                    },
+                    {
+                      "entity": "sensor.temperature_cuve",
+                      "name": "Température"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "history-graph",
+              "title": "Niveau sur 24 h",
+              "hours_to_show": 24,
+              "entities": [
+                "sensor.niveau_d_eau",
+                "sensor.temperature_cuve"
+              ]
+            },
+            {
+              "type": "entities",
+              "title": "Alertes",
+              "entities": [
+                {
+                  "entity": "binary_sensor.cuve_basse",
+                  "name": "Cuve basse"
+                },
+                {
+                  "entity": "binary_sensor.cuve_pleine",
+                  "name": "Cuve pleine"
+                },
+                {
+                  "entity": "binary_sensor.gel_possible",
+                  "name": "Gel possible"
+                }
+              ]
+            },
+            {
+              "type": "entities",
+              "title": "Simulation — à retirer après le flash",
+              "entities": [
+                {
+                  "entity": "input_number.niveau_simule",
+                  "name": "Niveau simulé"
+                },
+                {
+                  "entity": "input_number.temperature_simulee",
+                  "name": "Température simulée"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

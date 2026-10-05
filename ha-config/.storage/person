@@ -1,0 +1,15 @@
+{
+  "version": 2,
+  "minor_version": 1,
+  "key": "person",
+  "data": {
+    "items": [
+      {
+        "id": "limnimetre",
+        "name": "Limnimètre",
+        "user_id": "b94a9be2e2db4bc08951ffa5f6d81611",
+        "device_trackers": []
+      }
+    ]
+  }
+}

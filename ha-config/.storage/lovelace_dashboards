@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "minor_version": 1,
+  "key": "lovelace_dashboards",
+  "data": {
+    "items": [
+      {
+        "id": "map",
+        "icon": "mdi:map",
+        "title": "Map",
+        "url_path": "map",
+        "require_admin": false,
+        "show_in_sidebar": true,
+        "mode": "storage"
+      },
+      {
+        "id": "dashboard_limnimetre",
+        "require_admin": false,
+        "show_in_sidebar": true,
+        "icon": "mdi:waves",
+        "title": "Limnimètre",
+        "url_path": "dashboard-limnimetre",
+        "mode": "storage"
+      }
+    ]
+  }
+}
